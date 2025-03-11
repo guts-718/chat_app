@@ -4,7 +4,6 @@ import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
 
 export const signup = async (req, res) => {
-  console.log("signup request recieved");
   const { fullName, email, password } = req.body;
 
   if (!fullName || !email || !password) {
@@ -37,7 +36,7 @@ export const signup = async (req, res) => {
 
     await newUser.save(); // Save user to the database
 
-    generateToken(newUser._id, res); // Assuming this sets a token in cookies or response headers
+    generateToken(newUser._id, res); // important
 
     return res.status(201).json({
       _id: newUser._id,
@@ -96,13 +95,16 @@ export const logout = (req, res) => {
   }
 };
 
+// before updateProfile we have used a middleware protectRoute which adds user object to req - req.user = user;
 export const updateProfile = async (req, res) => {
   try {
     const { profilePic } = req.body;
     const userId = req.user._id;
 
     if (!profilePic) {
-      res.status(401).json({ success: false, message: "profile pic needed" });
+      return res
+        .status(401)
+        .json({ success: false, message: "profile pic needed" });
     }
     const uploadResponse = await cloudinary.uploader.upload(profilePic);
     const updatedUser = await User.findByIdAndUpdate(
@@ -125,3 +127,14 @@ export const checkAuth = (req, res) => {
     res.status(500).json({ message: "internal server error" });
   }
 };
+
+// bcrypt - genSalt(10), hash(pswd,salt), compare(pswd,user.pswd);
+// res.cookie("jwt", "", { maxAge: 0 }); - to invalidate jwt cookie while logout
+// const uploadResponse = await cloudinary.uploader.upload(profilePic);
+/*
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePic: uploadResponse.secure_url },
+      { new: true }
+    );
+*/

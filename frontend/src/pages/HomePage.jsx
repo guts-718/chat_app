@@ -1,7 +1,13 @@
 import React from "react";
+import { useAuthStore } from "../store/useAuthStore";
 
 function HomePage() {
-  return <div>HomePage</div>;
+  const { authUser } = useAuthStore();
+  return (
+    <div>
+      <h1>{authUser}</h1>
+    </div>
+  );
 }
 
 export default HomePage;
