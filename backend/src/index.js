@@ -1,14 +1,23 @@
 import express from "express";
 import dotenv from "dotenv";
-import cors from "cors";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 
-import authRouter from "./routes/auth.route.js";
-import messageRouter from "./routes/message.route.js";
+import path from "path";
+
 import { connectDB } from "./lib/db.js";
 
+import authRoutes from "./routes/auth.route.js";
+import messageRoutes from "./routes/message.route.js";
+import { app, server } from "./lib/socket.js";
+
 dotenv.config();
-const app = express();
+
+const PORT = process.env.PORT;
+const __dirname = path.resolve();
+
+app.use(express.json());
+app.use(cookieParser());
 app.use(
   cors({
     origin: "http://localhost:5174",
@@ -16,19 +25,18 @@ app.use(
   })
 );
 
-app.get("/", (req, res) => {
-  res.send("i am here");
-});
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
 
-app.use(express.json()); // needed to understand the json body send via a post request..
-app.use(cookieParser()); // to parse the jwt../ cookie
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
-const PORT = process.env.PORT | 5000;
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+  });
+}
 
-app.use("/api/auth", authRouter);
-app.use("/api/messages", messageRouter);
-
-app.listen(PORT, (req, res) => {
-  console.log(`listening server at port ${PORT}`);
+server.listen(PORT, () => {
+  console.log("server is running on PORT:" + PORT);
   connectDB();
 });

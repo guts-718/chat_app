@@ -1,51 +1,49 @@
-import dotenv from "dotenv";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
+
 import cloudinary from "../lib/cloudinary.js";
-dotenv.config();
+import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export const getUsersForSidebar = async (req, res) => {
-  const userId = req.user._id;
   try {
-    //   const allUsers=await User.find({});
-    //   const otherUsers=allUsers.filter((x)=>x._id!=userId);
-    //   otherUsers.map((x)=>{
-    //     console.log(x);
-    //   })
+    const loggedInUserId = req.user._id;
+    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
 
-    const filteredUsers = await User.find({ _id: { $ne: userId } });
-    res.status(201).json(filteredUsers);
+    res.status(200).json(filteredUsers);
   } catch (error) {
-    res.status(401).json({ success: false, message: "could not load users" });
+    console.error("Error in getUsersForSidebar: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 export const getMessages = async (req, res) => {
   try {
-    const logged_userId = req.user._id;
-    const othersId = req.params.id;
+    const { id: userToChatId } = req.params;
+    const myId = req.user._id;
 
     const messages = await Message.find({
       $or: [
-        { senderId: logged_userId, receiverId: othersId },
-        { senderId: othersId, receiverId: logged_userId },
+        { senderId: myId, receiverId: userToChatId },
+        { senderId: userToChatId, receiverId: myId },
       ],
     });
 
     res.status(200).json(messages);
   } catch (error) {
-    res.status(401).json({ message: error.message });
-    console.log(`could not get messages ${error.message}`);
+    console.log("Error in getMessages controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 export const sendMessage = async (req, res) => {
   try {
-    const senderId = req.user._id;
-    const receiverId = req.params.id;
     const { text, image } = req.body;
+    const { id: receiverId } = req.params;
+    const senderId = req.user._id;
+
     let imageUrl;
     if (image) {
+      // Upload base64 image to cloudinary
       const uploadResponse = await cloudinary.uploader.upload(image);
       imageUrl = uploadResponse.secure_url;
     }
@@ -59,10 +57,14 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    // todo: await real time functionality goes here ==> socket.io
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("newMessage", newMessage);
+    }
+
     res.status(201).json(newMessage);
   } catch (error) {
-    res.status(401).json({ success: false, message: "could not send message" });
-    console.log(`could not send message: error: ${error.message}`);
+    console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
